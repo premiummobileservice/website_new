@@ -204,17 +204,21 @@ CSRF_TRUSTED_ORIGINS = config(
 )
 
 # ── Email ─────────────────────────────────────────────────────────────────────
-EMAIL_BACKEND = config(
-    "EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend",
-)
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
-EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="premiummobileservice3@gmail.com")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Premium Mobile Repair <premiummobileservice3@gmail.com>")
 LEAD_NOTIFY_EMAILS = config("LEAD_NOTIFY_EMAILS", default="premiummobileservice3@gmail.com", cast=Csv())
+
+# Auto-switch to SMTP when App Password is provided
+_default_backend = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if (EMAIL_HOST_PASSWORD and EMAIL_HOST_PASSWORD != "change-me-app-password")
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_BACKEND = config("EMAIL_BACKEND", default=_default_backend)
 
 # ── Business Details ─────────────────────────────────────────────────────────
 BUSINESS_PHONE = config("BUSINESS_PHONE", default="+91 99860 97786")
