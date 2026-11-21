@@ -37,3 +37,7 @@ django-debug-toolbar==4.4.6
 
 # Validation
 phonenumbers==8.13.46
+
+# Production Server & Static Files
+gunicorn==22.0.0
+whitenoise==6.7.0

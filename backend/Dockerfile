@@ -15,8 +15,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Create non-root user
-RUN adduser --disabled-password --gecos '' appuser && chown -R appuser:appuser /app
-USER appuser
+# Run collectstatic during build
+RUN python manage.py collectstatic --no-input || true
+
+# Environment variables
+ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
+
+# Start command: migrate, seed admin user, and start gunicorn on Render's $PORT
+CMD ["sh", "-c", "python manage.py migrate --no-input && python seed_demo_data.py || true && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers 2"]
