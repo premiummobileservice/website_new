@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { BookingModal } from './components/common/BookingModal';
+import { FloatingWhatsApp } from './components/common/FloatingWhatsApp';
 
 // Public Pages
 import { HomePage } from './pages/website/HomePage';
@@ -99,6 +100,7 @@ const WebsiteLayout: React.FC = () => {
         defaultService={modalService}
         defaultArea={modalArea}
       />
+      <FloatingWhatsApp />
     </div>
   );
 };
