@@ -114,7 +114,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Fix blurry images, vibrating optical stabilization, cracked lens sapphire glass, and black viewfinder.',
     fullDesc: 'Optical image stabilization (OIS) gyro motors and lens elements are delicate. We replace scratched outer glass without opening the sensor, or swap damaged camera modules to restore crystal clear focus.',
     icon: 'Camera',
-    image: 'https://i.pinimg.com/736x/34/30/23/343023aa6584d2b4dded129efb551b4a.jpg',
+    image: '/images/service_camera.jpg',
     commonIssues: [
       'Cracked camera glass causing lens glare',
       'Viewfinder vibrates violently with buzzing sound (OIS failure)',
@@ -132,7 +132,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Clear audio restoration for earpiece, bottom loudspeaker, and noise-cancelling microphone arrays.',
     fullDesc: 'If callers can’t hear you, or ringtones crackle at higher volumes, our technicians diagnose acoustic mesh blockages and replace degraded transducer modules.',
     icon: 'Volume2',
-    image: 'https://i.pinimg.com/736x/4d/8f/37/4d8f37b5e6fcd96118e4f0ffc7dd59fe.jpg',
+    image: '/images/service_speaker_mic.jpg',
     commonIssues: [
       'Cannot hear caller during voice calls unless on speaker',
       'Caller complains voice is faint, muffled, or robotic',
@@ -150,7 +150,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Micro-soldering, power IC reballing, and Dot Projector Face ID circuit repairs.',
     fullDesc: 'Advanced component-level diagnostics for devices deemed unfixable elsewhere. We analyze board schematics to locate shorted capacitors, faulty charging ICs, baseband modems, and Face ID flex sensors.',
     icon: 'Cpu',
-    image: 'https://i.pinimg.com/1200x/19/50/09/195009bd458dae89be714cc5aa75400d.jpg',
+    image: '/images/service_faceid_motherboard.jpg',
     commonIssues: [
       '"Face ID is not available" error message',
       'Phone completely dead with zero current draw',
