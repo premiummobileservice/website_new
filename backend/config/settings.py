@@ -10,7 +10,10 @@ from decouple import config, Csv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ── Security ──────────────────────────────────────────────────────────────────
-SECRET_KEY = config("SECRET_KEY")
+SECRET_KEY = config(
+    "SECRET_KEY",
+    default="django-insecure-pmr-prod-key-7f9a8b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c",
+)
 DEBUG = config("DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1,0.0.0.0,testserver,.vercel.app,*", cast=Csv())
 
@@ -83,8 +86,23 @@ TEMPLATES = [
 ]
 
 # ── Database ──────────────────────────────────────────────────────────────────
-USE_SQLITE = config("USE_SQLITE", default=False, cast=bool)
-if USE_SQLITE:
+DATABASE_URL = config("DATABASE_URL", default=None)
+USE_SQLITE = config("USE_SQLITE", default=True, cast=bool)
+
+if DATABASE_URL:
+    import urllib.parse
+    _db_url = urllib.parse.urlparse(DATABASE_URL)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db_url.path.lstrip("/"),
+            "USER": _db_url.username,
+            "PASSWORD": _db_url.password,
+            "HOST": _db_url.hostname,
+            "PORT": _db_url.port or "5432",
+        }
+    }
+elif USE_SQLITE:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -98,13 +116,13 @@ else:
             "NAME": config("DB_NAME", default="pmr_db"),
             "USER": config("DB_USER", default="pmr_user"),
             "PASSWORD": config("DB_PASSWORD", default="pmr_password"),
-            "HOST": config("DB_HOST", default="db"),
+            "HOST": config("DB_HOST", default="localhost"),
             "PORT": config("DB_PORT", default="5432"),
         }
     }
 
 # ── Cache / Session ───────────────────────────────────────────────────────────
-USE_REDIS = config("USE_REDIS", default=True, cast=bool)
+USE_REDIS = config("USE_REDIS", default=False, cast=bool)
 if USE_REDIS:
     CACHES = {
         "default": {
@@ -122,7 +140,7 @@ else:
     }
     SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
-CELERY_TASK_ALWAYS_EAGER = config("CELERY_TASK_ALWAYS_EAGER", default=False, cast=bool)
+CELERY_TASK_ALWAYS_EAGER = config("CELERY_TASK_ALWAYS_EAGER", default=True, cast=bool)
 
 # ── Static / Media ────────────────────────────────────────────────────────────
 STATIC_URL = "/static/"
