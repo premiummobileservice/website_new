@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: premium-mobile-repair-backend
+    name: premiummobileservice-api
     runtime: python
     rootDir: backend
     buildCommand: bash build.sh
