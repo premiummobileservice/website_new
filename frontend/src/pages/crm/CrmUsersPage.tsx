@@ -11,97 +11,50 @@ import {
   Phone,
   Calendar,
   X,
-  Edit2,
-  Key,
+  Trash2,
+  Lock,
+  UserCheck,
+  Ban,
+  Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { apiGet, apiPost } from '../../services/api';
+import { crmApi } from '../../api/crmApi';
+import { User } from '../../types';
 import toast from 'react-hot-toast';
-
-interface StaffUser {
-  id: number;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  role: 'admin' | 'manager' | 'technician' | 'telecaller' | 'pickup_boy';
-  is_active: boolean;
-  date_joined?: string;
-}
 
 export const CrmUsersPage: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<StaffUser[]>([
-    {
-      id: 1,
-      username: 'admin',
-      first_name: 'Super',
-      last_name: 'Admin',
-      email: 'admin@premiummobilerepair.in',
-      phone: '+91 93435 84460',
-      role: 'admin',
-      is_active: true,
-      date_joined: '2026-01-15',
-    },
-    {
-      id: 2,
-      username: 'manager',
-      first_name: 'Operations',
-      last_name: 'Manager',
-      email: 'manager@premiummobilerepair.in',
-      phone: '+91 93435 84461',
-      role: 'manager',
-      is_active: true,
-      date_joined: '2026-02-01',
-    },
-    {
-      id: 3,
-      username: 'technician',
-      first_name: 'Senior',
-      last_name: 'Technician',
-      email: 'tech@premiummobilerepair.in',
-      phone: '+91 93435 84462',
-      role: 'technician',
-      is_active: true,
-      date_joined: '2026-02-10',
-    },
-    {
-      id: 4,
-      username: 'telecaller',
-      first_name: 'Support',
-      last_name: 'Executive',
-      email: 'support@premiummobilerepair.in',
-      phone: '+91 93435 84463',
-      role: 'telecaller',
-      is_active: true,
-      date_joined: '2026-02-15',
-    },
-  ]);
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [modalOpen, setModalOpen] = useState(false);
 
-  // Form State
-  const [newUsername, setNewUsername] = useState('');
-  const [newFirstName, setNewFirstName] = useState('');
-  const [newLastName, setNewLastName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newRole, setNewRole] = useState<'admin' | 'manager' | 'technician' | 'telecaller' | 'pickup_boy'>('technician');
-  const [newPassword, setNewPassword] = useState('');
+  // Add User Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    username: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    role: 'admin',
+    phone: '',
+    password: '',
+    password_confirm: '',
+  });
+
+  // Delete Confirmation Modal State
+  const [deleteTargetUser, setDeleteTargetUser] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // If backend has user management endpoint:
-      const data = await apiGet<StaffUser[]>('/auth/users/').catch(() => null);
-      if (data && Array.isArray(data)) {
-        setUsers(data);
-      }
+      const data = await crmApi.getUsers();
+      setUsers(data);
     } catch {
-      // Keep initial seeded users
+      toast.error('Failed to load staff accounts');
     } finally {
       setLoading(false);
     }
@@ -113,46 +66,105 @@ export const CrmUsersPage: React.FC = () => {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUsername || !newPassword) {
+    if (!newUserForm.username.trim() || !newUserForm.password.trim()) {
       toast.error('Username and password are required');
       return;
     }
 
+    if (newUserForm.password !== newUserForm.password_confirm) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (newUserForm.password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+
+    setIsCreating(true);
     try {
-      const newUser: StaffUser = {
-        id: users.length + 1,
-        username: newUsername,
-        first_name: newFirstName,
-        last_name: newLastName,
-        email: newEmail,
-        phone: newPhone,
-        role: newRole,
-        is_active: true,
-        date_joined: new Date().toISOString().split('T')[0],
-      };
-      setUsers([...users, newUser]);
-      toast.success(`Staff user ${newUsername} added successfully!`);
-      setModalOpen(false);
-      // Reset form
-      setNewUsername('');
-      setNewFirstName('');
-      setNewLastName('');
-      setNewEmail('');
-      setNewPhone('');
-      setNewPassword('');
+      await crmApi.createUser({
+        username: newUserForm.username.trim(),
+        first_name: newUserForm.first_name.trim(),
+        last_name: newUserForm.last_name.trim(),
+        email: newUserForm.email.trim(),
+        role: newUserForm.role,
+        phone: newUserForm.phone.trim(),
+        password: newUserForm.password,
+        password_confirm: newUserForm.password_confirm,
+      });
+
+      toast.success(`Administrator account @${newUserForm.username} created successfully!`);
+      setIsAddModalOpen(false);
+      setNewUserForm({
+        username: '',
+        first_name: '',
+        last_name: '',
+        email: '',
+        role: 'admin',
+        phone: '',
+        password: '',
+        password_confirm: '',
+      });
+      await fetchUsers();
+    } catch (err: any) {
+      const errData = err.response?.data;
+      if (typeof errData === 'object') {
+        const firstKey = Object.keys(errData)[0];
+        const val = errData[firstKey];
+        toast.error(Array.isArray(val) ? `${firstKey}: ${val[0]}` : String(val));
+      } else {
+        toast.error('Failed to create staff account. Check details.');
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (targetUser: User) => {
+    if (targetUser.id === currentUser?.id) {
+      toast.error('Cannot deactivate your own account');
+      return;
+    }
+
+    try {
+      await crmApi.toggleUserActive(targetUser.id);
+      toast.success(`User @${targetUser.username} status updated.`);
+      await fetchUsers();
     } catch {
-      toast.error('Failed to create staff account');
+      toast.error('Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteTargetUser) return;
+    if (deleteTargetUser.id === currentUser?.id) {
+      toast.error('You cannot delete your own logged-in account');
+      setDeleteTargetUser(null);
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await crmApi.deleteUser(deleteTargetUser.id);
+      toast.success(`Staff user @${deleteTargetUser.username} deleted permanently.`);
+      setDeleteTargetUser(null);
+      await fetchUsers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to delete staff user');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const filteredUsers = users.filter((u) => {
     const q = search.toLowerCase();
+    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase();
     const matchesSearch =
       u.username.toLowerCase().includes(q) ||
-      u.first_name.toLowerCase().includes(q) ||
-      u.last_name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.phone?.toLowerCase().includes(q);
+      fullName.includes(q) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.phone && u.phone.includes(q));
 
     if (!matchesSearch) return false;
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
@@ -160,34 +172,21 @@ export const CrmUsersPage: React.FC = () => {
     return true;
   });
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-rose-100 text-rose-700 border-rose-200';
-      case 'manager':
-        return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'technician':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'telecaller':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'pickup_boy':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
+  const getRoleBadge = () => {
+    return 'bg-indigo-50 text-indigo-700 border-indigo-200';
   };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Page Header */}
+      {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Users className="w-7 h-7 text-indigo-600" />
-            Staff & User Management
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <Users className="w-6 h-6 text-indigo-600" />
+            <span>Admin Accounts &amp; Access Control</span>
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Super Admin access: Manage CRM executive, technician, manager & staff accounts. Handled leads will display the staff member's name.
+          <p className="text-xs text-slate-500 mt-1">
+            System Admin control: Provision administrator logins, manage credentials, or revoke accounts.
           </p>
         </div>
 
@@ -195,284 +194,370 @@ export const CrmUsersPage: React.FC = () => {
           <button
             onClick={fetchUsers}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </button>
 
           <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
-            <span>+ Add New Staff User</span>
+            <span>+ Add Administrator</span>
           </button>
         </div>
       </div>
 
-      {/* Superadmin Alert Banner */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+      {/* ── Security Notice Banner ── */}
+      <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
           <Shield className="w-5 h-5 text-indigo-700 shrink-0" />
           <div>
             <div className="font-bold text-indigo-950">
-              Logged in as:{' '}
+              Admin Governance:{' '}
               <span className="text-indigo-600 font-extrabold">
-                {currentUser?.first_name || 'Super Admin'} ({currentUser?.username || 'admin'})
+                {currentUser?.first_name || 'Admin'} (@{currentUser?.username || 'admin'})
               </span>
             </div>
             <p className="text-indigo-800 text-[11px] mt-0.5">
-              Only the Super Admin can create additional staff users. Leads handled by any staff member will record their exact name in the CRM.
+              Authorized Admins have full access across enquiries, bookings, workshop repairs, and billing.
             </p>
           </div>
         </div>
 
-        <span className="px-3 py-1 bg-white font-bold text-indigo-900 border border-indigo-200 rounded-lg text-xs whitespace-nowrap shadow-xs">
-          Total Staff: {users.length}
+        <span className="px-3 py-1 bg-white font-bold text-indigo-900 border border-indigo-200 rounded-xl text-xs whitespace-nowrap shadow-xs">
+          Total Administrators: {users.length}
         </span>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full sm:w-96">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* ── Filter and Search Bar ── */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search staff by name, email, or phone..."
+            placeholder="Search administrators by name, username, email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-xs font-bold text-slate-600">Role:</label>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-indigo-500"
-          >
-            <option value="all">All Roles ({users.length})</option>
-            <option value="admin">Super Admin</option>
-            <option value="manager">Manager</option>
-            <option value="technician">Technician</option>
-            <option value="telecaller">CRM Executive</option>
-            <option value="pickup_boy">Pickup / Delivery</option>
-          </select>
+        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+          <span className="px-3 py-1.5 rounded-xl bg-slate-100 font-bold text-slate-700">
+            {users.length} Active {users.length === 1 ? 'Admin' : 'Admins'}
+          </span>
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      {/* ── Staff Table ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">Staff Name</th>
-                <th className="py-3 px-4">Role</th>
-                <th className="py-3 px-4">Contact Email & Phone</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Joined Date</th>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase font-semibold text-[10px]">
+              <tr>
+                <th className="py-3 px-4">Staff Member</th>
+                <th className="py-3 px-4">Role &amp; Permissions</th>
+                <th className="py-3 px-4">Contact Info</th>
+                <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-4">Date Joined</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="font-bold text-slate-900">
-                      {u.first_name} {u.last_name}
-                    </div>
-                    <div className="text-[11px] font-mono text-slate-400">@{u.username}</div>
-                  </td>
+              {filteredUsers.map((u) => {
+                const isCurrent = u.id === currentUser?.id;
 
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${getRoleBadge(
-                        u.role
-                      )}`}
-                    >
-                      {u.role === 'admin'
-                        ? 'Super Admin'
-                        : u.role === 'telecaller'
-                        ? 'CRM Executive'
-                        : u.role === 'pickup_boy'
-                        ? 'Pickup Executive'
-                        : u.role}
-                    </span>
-                  </td>
+                return (
+                  <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 uppercase">
+                          {u.first_name ? u.first_name[0] : u.username[0]}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>{u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username}</span>
+                            {isCurrent && (
+                              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded font-mono font-bold">
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono">@{u.username}</div>
+                        </div>
+                      </div>
+                    </td>
 
-                  <td className="py-3 px-4">
-                    <div className="text-slate-800 font-medium flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{u.email}</span>
-                    </div>
-                    <div className="text-slate-500 font-mono text-[11px] mt-0.5 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{u.phone || '+91 93435 84460'}</span>
-                    </div>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Shield className="w-3 h-3 text-indigo-500" />
+                        <span>Administrator</span>
+                      </span>
+                    </td>
 
-                  <td className="py-3 px-4">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      Active Staff
-                    </span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <div className="text-slate-800 flex items-center gap-1.5 font-medium">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{u.email || '—'}</span>
+                      </div>
+                      {u.phone && (
+                        <div className="text-slate-500 text-[11px] mt-0.5 flex items-center gap-1.5 font-mono">
+                          <Phone className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{u.phone}</span>
+                        </div>
+                      )}
+                    </td>
 
-                  <td className="py-3 px-4 text-slate-500 text-[11px]">
-                    {u.date_joined || '2026-01-15'}
-                  </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {u.is_active ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                          <Ban className="w-3 h-3 text-slate-400" />
+                          Inactive
+                        </span>
+                      )}
+                    </td>
 
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => toast.success(`Viewing profile for @${u.username}`)}
-                      className="px-2.5 py-1 text-slate-600 hover:text-indigo-600 font-semibold text-[11px] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                    >
-                      Edit Profile
-                    </button>
+                    <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                      {u.date_joined ? new Date(u.date_joined).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Toggle Active */}
+                        {!isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActive(u)}
+                            title={u.is_active ? 'Deactivate account' : 'Activate account'}
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition-colors cursor-pointer"
+                          >
+                            {u.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                        )}
+
+                        {/* Delete User Button */}
+                        {!isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTargetUser(u)}
+                            title={`Delete user @${u.username}`}
+                            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                    {loading ? 'Loading staff accounts...' : 'No staff accounts found matching filter.'}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Add User Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-indigo-600" />
-                  Add New Staff User
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Provision new team credentials for CRM lead handling & workshop assignments.
-                </p>
+      {/* ── Modal: Add New Staff Member ── */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-extrabold text-slate-900">Provision New Staff Account</h3>
               </div>
               <button
-                onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddUser} className="space-y-3 text-xs">
+            <form onSubmit={handleAddUser} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">First Name</label>
+                  <label className="block text-slate-700 font-semibold mb-1">First Name *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rahul"
-                    value={newFirstName}
-                    onChange={(e) => setNewFirstName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium"
+                    value={newUserForm.first_name}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, first_name: e.target.value })}
+                    placeholder="e.g. Arun"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Last Name</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Last Name</label>
                   <input
                     type="text"
-                    required
-                    placeholder="e.g. Sharma"
-                    value={newLastName}
-                    onChange={(e) => setNewLastName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium"
+                    value={newUserForm.last_name}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, last_name: e.target.value })}
+                    placeholder="e.g. Kumar"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Username (Login ID)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Username (Login ID) *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. rahul_tech"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium"
+                    value={newUserForm.username}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                    placeholder="e.g. arun_caller"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Default Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium"
-                  />
+                  <label className="block text-slate-700 font-semibold mb-1">Access Role</label>
+                  <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-indigo-700 font-bold flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-indigo-600" />
+                    <span>System Administrator (Full Access)</span>
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email Address</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Staff Email Address *</label>
                   <input
                     type="email"
                     required
-                    placeholder="rahul@premiummobilerepair.in"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium"
+                    value={newUserForm.email}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                    placeholder="arun@premiummobilerepair.in"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Mobile Phone</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Mobile Phone</label>
                   <input
-                    type="text"
-                    required
-                    placeholder="+91 98800 12345"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium"
+                    type="tel"
+                    value={newUserForm.phone}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
+                    placeholder="9876543210"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Assigned Role & Level</label>
-                <select
-                  value={newRole}
-                  onChange={(e) =>
-                    setNewRole(
-                      e.target.value as 'admin' | 'manager' | 'technician' | 'telecaller' | 'pickup_boy'
-                    )
-                  }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-semibold text-slate-800"
-                >
-                  <option value="technician">Workshop Technician</option>
-                  <option value="telecaller">CRM Executive (Telecaller / Support)</option>
-                  <option value="pickup_boy">Pickup & Delivery Executive</option>
-                  <option value="manager">Operations Manager</option>
-                  <option value="admin">Super Administrator</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Password (min 8 chars) *</label>
+                  <input
+                    type="password"
+                    required
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Confirm Password *</label>
+                  <input
+                    type="password"
+                    required
+                    value={newUserForm.password_confirm}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, password_confirm: e.target.value })}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
+                <strong>Access Note:</strong> This user can immediately log in to the CRM with this username and password to handle repair operations according to their role.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold cursor-pointer"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md cursor-pointer"
+                  disabled={isCreating}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
-                  Create Staff Account
+                  {isCreating ? 'Creating User...' : 'Create Staff Account'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Delete Staff Confirmation ── */}
+      {deleteTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Delete Staff Account?</h3>
+                <p className="text-xs text-slate-500">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+              <div>
+                <span className="font-bold">Staff Name:</span>{' '}
+                {deleteTargetUser.full_name || `${deleteTargetUser.first_name || ''} ${deleteTargetUser.last_name || ''}`.trim() || deleteTargetUser.username}
+              </div>
+              <div>
+                <span className="font-bold">Username:</span> @{deleteTargetUser.username}
+              </div>
+              <div>
+                <span className="font-bold">Role:</span> {deleteTargetUser.role.toUpperCase()}
+              </div>
+              <div className="text-[11px] text-slate-500 pt-1">
+                Linked historical jobs and leads will be retained with audit trails, but this login will be permanently revoked.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetUser(null)}
+                className="px-4 py-2 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteUser}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-2 text-xs cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Permanently Delete'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

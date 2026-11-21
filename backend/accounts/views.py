@@ -15,13 +15,35 @@ User = get_user_model()
 
 
 class LoginView(TokenObtainPairView):
-    """JWT login – returns access + refresh tokens."""
+    """JWT login – returns access + refresh tokens and user profile."""
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
+        # Support email or username, case-insensitive, strip whitespace
+        data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        raw_identifier = str(data.get("username", "")).strip()
+        raw_password = str(data.get("password", "")).strip()
+
+        if "@" in raw_identifier:
+            matched_user = User.objects.filter(email__iexact=raw_identifier).first()
+            if matched_user:
+                data["username"] = matched_user.username
+        else:
+            matched_user = User.objects.filter(username__iexact=raw_identifier).first()
+            if matched_user:
+                data["username"] = matched_user.username
+            else:
+                data["username"] = raw_identifier
+
+        data["password"] = raw_password
+        request._full_data = data
+
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
-            logger.info(f"Login: {request.data.get('username')} from {self._get_ip(request)}")
+            user = User.objects.filter(username=data["username"]).first()
+            if user:
+                response.data["user"] = UserSerializer(user).data
+            logger.info(f"Login successful: {data['username']} from {self._get_ip(request)}")
         return response
 
     def _get_ip(self, request):
@@ -80,10 +102,30 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserCreateSerializer
         return UserSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [IsManagerOrAbove()]
         return [IsAdminRole()]
+
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user == request.user:
+            return Response(
+                {"detail": "Cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user_name = user.get_full_name() or user.username
+        user.delete()
+        return Response(
+            {"detail": f"Staff user {user_name} deleted successfully."},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"], url_path="toggle-active")
     def toggle_active(self, request, pk=None):

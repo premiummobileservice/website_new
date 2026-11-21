@@ -201,7 +201,7 @@ export const App: React.FC = () => {
                 <Route path="customers" element={<CrmCustomersPage />} />
                 <Route path="reports" element={<CrmReportsPage />} />
                 <Route path="users" element={<CrmUsersPage />} />
-                <Route path="technicians" element={<CrmTechniciansPage />} />
+                <Route path="technicians" element={<Navigate to="/crm/users" replace />} />
                 <Route path="settings" element={<CrmSettingsPage />} />
               </Route>
 

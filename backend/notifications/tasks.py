@@ -107,7 +107,7 @@ def send_lead_notification_emails(self, lead_id: int):
                 subject=subject_business,
                 text_body=text_body,
                 html_body=html_body,
-                task_id=self.request.id or "",
+                task_id=getattr(getattr(self, "request", None), "id", "") or "",
             )
 
     # ── 2. Customer acknowledgement ────────────────────────────────────────────
@@ -122,7 +122,7 @@ def send_lead_notification_emails(self, lead_id: int):
             subject=subject_customer,
             text_body=text_body_c,
             html_body=html_body_c,
-            task_id=self.request.id or "",
+            task_id=getattr(getattr(self, "request", None), "id", "") or "",
         )
 
 

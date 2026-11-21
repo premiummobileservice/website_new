@@ -16,6 +16,10 @@ class Lead(TimestampedModel):
 
     class Status(models.TextChoices):
         NEW = "new", "New"
+        INTERESTED = "interested", "Interested (Booking)"
+        CALLBACK_LATER = "callback_later", "Call Back Later"
+        NOT_INTERESTED = "not_interested", "Not Interested"
+        WRONG_NUMBER = "wrong_number", "Wrong Number"
         CONTACTED = "contacted", "Contacted"
         PICKUP_SCHEDULED = "pickup_scheduled", "Pickup Scheduled"
         DEVICE_COLLECTED = "device_collected", "Device Collected"
@@ -27,6 +31,7 @@ class Lead(TimestampedModel):
         COMPLETED = "completed", "Completed"
         DECLINED = "declined", "Declined"
         LOST = "lost", "Lost"
+        CANCELLED = "cancelled", "Cancelled"
 
     class Source(models.TextChoices):
         WEBSITE = "website", "Website"
@@ -84,6 +89,20 @@ class Lead(TimestampedModel):
     )
     lost_reason = models.TextField(blank=True, help_text="Required when status=lost")
     declined_reason = models.TextField(blank=True)
+
+    # 4-Action CRM Extension fields matching fixurdevice
+    callback_date = models.DateField(null=True, blank=True)
+    callback_time = models.CharField(max_length=50, blank=True)
+    callback_notes = models.TextField(blank=True)
+    rejection_reason = models.CharField(max_length=100, blank=True)
+    rejection_notes = models.TextField(blank=True)
+    product_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    vendor_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    vendor_name = models.CharField(max_length=200, blank=True)
+    service_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_customer_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    internal_profit = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_archived = models.BooleanField(default=False)
 
     # Source tracking
     source = models.CharField(

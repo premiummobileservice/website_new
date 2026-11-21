@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { crmApi } from '../../api/crmApi';
-import { RepairJob, JobStatus, QuotationItem } from '../../types';
+import { RepairJob, User } from '../../types';
+import toast from 'react-hot-toast';
 import {
   Wrench,
   Search,
@@ -10,78 +11,91 @@ import {
   X,
   Phone,
   ArrowRight,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  RefreshCw,
+  MessageCircle,
+  FileText,
+  DollarSign,
+  TrendingUp,
+  RotateCcw,
+  Shield,
+  Edit,
+  User as UserIcon,
+  Check,
+  PackageCheck,
 } from 'lucide-react';
 
-const JOB_STATUSES: { id: JobStatus; label: string; color: string }[] = [
-  { id: 'pending_pickup', label: '1. Pending Pickup', color: 'bg-amber-100 text-amber-800 border-amber-200' },
-  { id: 'received_at_hub', label: '2. Received at Hub', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  { id: 'under_diagnosis', label: '3. Under Diagnosis', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-  { id: 'quote_pending_approval', label: '4. Quote Pending Approval', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-  { id: 'approved_in_progress', label: '5. Approved & In Progress', color: 'bg-sky-100 text-sky-800 border-sky-200' },
-  { id: 'waiting_for_parts', label: '6. Waiting for Parts', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-  { id: 'qc_testing', label: '7. QC & Bench Testing', color: 'bg-teal-100 text-teal-800 border-teal-200' },
-  { id: 'out_for_delivery', label: '8. Out for Delivery', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { id: 'delivered_collected', label: '9. Delivered & Paid', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+const STATUS_TABS = [
+  { id: 'all', label: 'All Statuses' },
+  { id: 'scheduled', label: 'Scheduled', badge: 'bg-blue-100 text-blue-800' },
+  { id: 'in_progress', label: 'In Progress (Bench)', badge: 'bg-amber-100 text-amber-800' },
+  { id: 'completed', label: 'Completed (Done & Delivered)', badge: 'bg-emerald-100 text-emerald-800' },
+  { id: 'rework', label: 'Rework Required', badge: 'bg-rose-100 text-rose-800' },
 ];
 
 export const CrmJobsPage: React.FC = () => {
   const [jobs, setJobs] = useState<RepairJob[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedJob, setSelectedJob] = useState<RepairJob | null>(null);
+  
+  // Main stage filter matching fixurdevice (Ongoing vs Completed vs All)
+  const [mainTab, setMainTab] = useState<'ongoing' | 'completed' | 'all'>('ongoing');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [techFilter, setTechFilter] = useState('all');
 
-  const [quoteItems, setQuoteItems] = useState<QuotationItem[]>([
-    { description: 'Screen Assembly Replacement (Original Grade)', part_cost: 3200, labour_cost: 600, total: 3800 },
-  ]);
-  const [diagnosticNotes, setDiagnosticNotes] = useState('');
-  const [showPrintQuote, setShowPrintQuote] = useState(false);
+  // Selected job for updating
+  const [selectedJob, setSelectedJob] = useState<RepairJob | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Edit fields
+  const [editStatus, setEditStatus] = useState<string>('scheduled');
+  const [editTechnician, setEditTechnician] = useState<number | ''>('');
+  const [editDiagnosis, setEditDiagnosis] = useState('');
+  const [editWorkPerformed, setEditWorkPerformed] = useState('');
+  const [editPartsUsed, setEditPartsUsed] = useState('');
+  const [editReworkReason, setEditReworkReason] = useState('');
+
+  // Financial fields
+  const [editPartName, setEditPartName] = useState('');
+  const [editVendorName, setEditVendorName] = useState('');
+  const [editVendorCost, setEditVendorCost] = useState<number>(0);
+  const [editProductPrice, setEditProductPrice] = useState<number>(0);
+  const [editServiceCharges, setEditServiceCharges] = useState<number>(0);
+
+  // Quick 1-Click Complete Modal
+  const [completingJob, setCompletingJob] = useState<RepairJob | null>(null);
+  const [completionWorkDone, setCompletionWorkDone] = useState('');
+  const [completionTechId, setCompletionTechId] = useState<number | ''>('');
+  const [completionPaymentDone, setCompletionPaymentDone] = useState(true);
+  const [completionDelivered, setCompletionDelivered] = useState(true);
+  const [completionGenInvoice, setCompletionGenInvoice] = useState(true);
+  const [isCompleting, setIsCompleting] = useState(false);
+
+  // Print Invoice Modal
+  const [printInvoiceJob, setPrintInvoiceJob] = useState<RepairJob | null>(null);
 
   const fetchJobs = async () => {
     setLoading(true);
     try {
-      const res = await crmApi.getJobs({ search: searchQuery || undefined });
-      if (res && res.results && res.results.length > 0) {
-        setJobs(res.results);
-      } else {
-        setJobs([
-          {
-            id: 101,
-            job_number: 'JOB-2025-001',
-            lead: 1,
-            customer_name: 'Aditya Rao',
-            customer_phone: '9880011223',
-            device_type: 'smartphone',
-            brand_model: 'iPhone 13 Pro',
-            repair_needed: 'Screen Replacement',
-            status: 'under_diagnosis',
-            technician_name: 'Rajesh K.',
-            diagnostic_notes: 'Digitizer cracked on top right corner. TrueTone EEPROM read successful.',
-            quotation_amount: 4500,
-            is_quote_approved: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            pickup_address: 'Koramangala 4th Block, Bangalore',
-          },
-          {
-            id: 102,
-            job_number: 'JOB-2025-002',
-            lead: 2,
-            customer_name: 'Pooja Hegde',
-            customer_phone: '9845022334',
-            device_type: 'smartphone',
-            brand_model: 'Samsung Galaxy S22 Ultra',
-            repair_needed: 'Battery Replacement',
-            status: 'approved_in_progress',
-            technician_name: 'Vinay M.',
-            diagnostic_notes: 'Battery health degraded at 71%. 5000mAh OEM pack installed.',
-            quotation_amount: 2800,
-            is_quote_approved: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            pickup_address: 'Indiranagar 100 Feet Road, Bangalore',
-          },
-        ]);
+      const [jobsRes, usersRes] = await Promise.allSettled([
+        crmApi.getJobs({
+          search: searchQuery || undefined,
+          stage: mainTab !== 'all' ? mainTab : undefined,
+        }),
+        crmApi.getUsers(),
+      ]);
+
+      if (jobsRes.status === 'fulfilled') {
+        setJobs(jobsRes.value.results);
       }
+      if (usersRes.status === 'fulfilled') {
+        setUsers(usersRes.value);
+      }
+    } catch {
+      toast.error('Failed to load repair bookings');
     } finally {
       setLoading(false);
     }
@@ -89,414 +103,800 @@ export const CrmJobsPage: React.FC = () => {
 
   useEffect(() => {
     fetchJobs();
-  }, [searchQuery]);
+  }, [searchQuery, mainTab]);
 
-  const handleOpenJob = (job: RepairJob) => {
+  const openEditModal = (job: RepairJob) => {
     setSelectedJob(job);
-    setDiagnosticNotes(job.diagnostic_notes || '');
-    if (job.quotation_items && job.quotation_items.length > 0) {
-      setQuoteItems(job.quotation_items);
-    } else {
-      setQuoteItems([
-        { description: `${job.repair_needed} Hardware Part`, part_cost: 2500, labour_cost: 500, total: 3000 },
-      ]);
-    }
+    setEditStatus(job.status || 'scheduled');
+    setEditTechnician(job.technician || '');
+    setEditDiagnosis(job.diagnosis_notes || job.diagnostic_notes || '');
+    setEditWorkPerformed(job.work_performed || job.work_notes || '');
+    setEditPartsUsed(job.parts_used_notes || '');
+    setEditReworkReason(job.rework_reason || '');
+
+    setEditPartName(job.part_name || '');
+    setEditVendorName(job.vendor_name || '');
+    setEditVendorCost(job.vendor_cost || 0);
+    setEditProductPrice(job.product_price || job.quotation_amount || 0);
+    setEditServiceCharges(job.service_charges || 0);
   };
 
-  const handleAddQuoteItem = () => {
-    setQuoteItems([
-      ...quoteItems,
-      { description: 'Hardware Replacement Part', part_cost: 1000, labour_cost: 400, total: 1400 },
-    ]);
+  const openCompleteModal = (job: RepairJob) => {
+    setCompletingJob(job);
+    setCompletionWorkDone(job.work_performed || `${job.device_description} repaired and thoroughly tested`);
+    setCompletionTechId(job.technician || '');
+    setCompletionPaymentDone(true);
+    setCompletionDelivered(true);
+    setCompletionGenInvoice(true);
   };
 
-  const handleRemoveQuoteItem = (idx: number) => {
-    setQuoteItems(quoteItems.filter((_, i) => i !== idx));
-  };
+  const calculatedTotalCharge = Number(editProductPrice || 0) + Number(editServiceCharges || 0);
+  const calculatedInternalProfit = calculatedTotalCharge - Number(editVendorCost || 0);
 
-  const handleUpdateItem = (idx: number, field: keyof QuotationItem, val: any) => {
-    const next = [...quoteItems];
-    next[idx] = { ...next[idx], [field]: val };
-    if (field === 'part_cost' || field === 'labour_cost') {
-      const part = Number(next[idx].part_cost) || 0;
-      const labour = Number(next[idx].labour_cost) || 0;
-      next[idx].total = part + labour;
-    }
-    setQuoteItems(next);
-  };
-
-  const quoteSubtotal = quoteItems.reduce((acc, it) => acc + (it.total || 0), 0);
-  const gstAmount = Math.round(quoteSubtotal * 0.18);
-  const grandTotal = quoteSubtotal + gstAmount;
-
-  const handleUpdateJobStatus = async (status: JobStatus) => {
+  const handleSaveJob = async () => {
     if (!selectedJob) return;
+    setIsSaving(true);
     try {
-      await crmApi.updateJobStatus(selectedJob.id, status);
-      setSelectedJob({ ...selectedJob, status });
-      setJobs((prev) => prev.map((j) => (j.id === selectedJob.id ? { ...j, status } : j)));
-    } catch {
-      setSelectedJob({ ...selectedJob, status });
-      setJobs((prev) => prev.map((j) => (j.id === selectedJob.id ? { ...j, status } : j)));
+      await crmApi.updateJob(selectedJob.id, {
+        status: editStatus as any,
+        technician: editTechnician ? Number(editTechnician) : null,
+        diagnosis_notes: editDiagnosis,
+        work_performed: editWorkPerformed,
+        parts_used_notes: editPartsUsed,
+        rework_reason: editReworkReason,
+        part_name: editPartName,
+        vendor_name: editVendorName,
+        vendor_cost: Number(editVendorCost),
+        product_price: Number(editProductPrice),
+        service_charges: Number(editServiceCharges),
+        total_customer_charge: calculatedTotalCharge,
+        internal_profit: calculatedInternalProfit,
+      });
+
+      toast.success(`Booking ${selectedJob.job_number || `JOB-${selectedJob.id}`} updated!`);
+      setSelectedJob(null);
+      await fetchJobs();
+    } catch (err: any) {
+      const errData = err.response?.data;
+      let msg = errData?.detail;
+      if (!msg && errData && typeof errData === 'object') {
+        const firstKey = Object.keys(errData)[0];
+        const firstVal = errData[firstKey];
+        msg = Array.isArray(firstVal) ? `${firstKey}: ${firstVal[0]}` : String(firstVal);
+      }
+      toast.error(msg || 'Failed to update booking');
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleCompleteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completingJob) return;
+    setIsCompleting(true);
+    try {
+      await crmApi.completeJob(completingJob.id, {
+        work_performed: completionWorkDone,
+        technician: completionTechId || undefined,
+        payment_done: completionPaymentDone,
+        delivered: completionDelivered,
+        generate_invoice: completionGenInvoice,
+      });
+      toast.success(`Job marked as Complete & Delivered! Invoice generated.`);
+      setCompletingJob(null);
+      await fetchJobs();
+    } catch {
+      toast.error('Failed to complete job');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const filteredJobs = jobs.filter((job) => {
+    // Stage check
+    const isCompleted = ['completed', 'delivered', 'delivered_collected'].includes(job.status);
+    if (mainTab === 'ongoing' && isCompleted) return false;
+    if (mainTab === 'completed' && !isCompleted) return false;
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'in_progress' && !['in_progress', 'approved_in_progress', 'in_repair', 'diagnosing'].includes(job.status)) {
+        return false;
+      }
+      if (statusFilter === 'completed' && !isCompleted) {
+        return false;
+      }
+      if (statusFilter === 'scheduled' && !['scheduled', 'pickup_scheduled', 'pending_pickup', 'pending'].includes(job.status)) {
+        return false;
+      }
+      if (statusFilter === 'rework' && job.status !== 'rework') {
+        return false;
+      }
+    }
+
+    // Tech filter
+    if (techFilter !== 'all' && String(job.technician) !== techFilter) {
+      return false;
+    }
+
+    // Search query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return (
+        job.customer_name?.toLowerCase().includes(q) ||
+        job.customer_phone?.includes(q) ||
+        job.device_description?.toLowerCase().includes(q) ||
+        (job.job_number && job.job_number.toLowerCase().includes(q)) ||
+        (job.invoice_number && job.invoice_number.toLowerCase().includes(q))
+      );
+    }
+    return true;
+  });
+
+  const getStatusBadge = (status: string) => {
+    if (['completed', 'delivered', 'delivered_collected'].includes(status)) {
+      return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Completed (Delivered)</span>;
+    }
+    if (['in_progress', 'approved_in_progress', 'in_repair', 'diagnosing'].includes(status)) {
+      return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">In Progress</span>;
+    }
+    if (status === 'rework') {
+      return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">Rework Required</span>;
+    }
+    return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">Scheduled</span>;
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
+      {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Workshop Bookings & Repairs
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span>2. Repair Bookings &amp; Workshop</span>
+            <span className="text-xs px-2.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded-full">
+              {jobs.length} Total Records
+            </span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Bangalore laboratory diagnostics, quotation generation, and technician repair work orders
+            Manage physical bench repair workflow, technician assignment, parts procurement, and customer billing.
           </p>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search bookings, customers, models..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-sm"
-          />
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={fetchJobs}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Sync</span>
+          </button>
         </div>
       </div>
 
-      {/* Jobs Table */}
+      {/* ── Primary Main Tabs (Ongoing vs Completed vs All) ── */}
+      <div className="flex items-center border-b border-slate-200 gap-6">
+        <button
+          onClick={() => setMainTab('ongoing')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            mainTab === 'ongoing'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Wrench className="w-4 h-4" />
+          <span>Ongoing Repairs (Active)</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('completed')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            mainTab === 'completed'
+              ? 'border-emerald-600 text-emerald-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <PackageCheck className="w-4 h-4" />
+          <span>Completed &amp; Delivered</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('all')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            mainTab === 'all'
+              ? 'border-slate-800 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>All Bookings</span>
+        </button>
+      </div>
+
+      {/* ── Filter Bar ── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {STATUS_TABS.map((tab) => {
+            const isSelected = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={techFilter}
+            onChange={(e) => setTechFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-indigo-500 shadow-sm"
+          >
+            <option value="all">All Assignees</option>
+            {users.map((u) => (
+              <option key={u.id} value={String(u.id)}>
+                {u.first_name || u.username} (Admin)
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* ── Search Bar ── */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          placeholder="Search by Job ID, Invoice #, Customer name, phone, or device description..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-sm font-medium"
+        />
+      </div>
+
+      {/* ── Bookings Table ── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
               <tr>
-                <th className="px-5 py-3.5 font-bold">Job #</th>
-                <th className="px-5 py-3.5 font-bold">Customer</th>
-                <th className="px-5 py-3.5 font-bold">Device & Problem</th>
-                <th className="px-5 py-3.5 font-bold">Assigned Tech</th>
-                <th className="px-5 py-3.5 font-bold">Quotation</th>
-                <th className="px-5 py-3.5 font-bold">Status</th>
-                <th className="px-5 py-3.5 font-bold text-right">Actions</th>
+                <th className="px-4 py-3.5 font-bold">Booking ID / Date</th>
+                <th className="px-4 py-3.5 font-bold">Customer Contact</th>
+                <th className="px-4 py-3.5 font-bold">Device &amp; Issue</th>
+                <th className="px-4 py-3.5 font-bold">Assigned Tech</th>
+                <th className="px-4 py-3.5 font-bold">Status</th>
+                <th className="px-4 py-3.5 font-bold">Billing &amp; Margin</th>
+                <th className="px-4 py-3.5 font-bold text-right">Workshop Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {jobs.map((job) => {
-                const statusMeta = JOB_STATUSES.find((s) => s.id === job.status) || JOB_STATUSES[0];
+              {filteredJobs.map((job) => {
+                const cleanPhone = (job.customer_phone || '').replace(/\D/g, '');
+                const waUrl = `https://wa.me/91${cleanPhone}?text=Hello%20${encodeURIComponent(
+                  job.customer_name || 'Customer'
+                )}%2C%20update%20from%20Premium%20Mobile%20Repair%20on%20your%20device%20repair%20${job.job_number || job.id}.`;
+
+                const totalCustomer = job.total_customer_charge || job.product_price || job.quotation_amount || 0;
+                const profit = job.internal_profit || (totalCustomer - (job.vendor_cost || 0));
+                const isJobCompleted = ['completed', 'delivered', 'delivered_collected'].includes(job.status);
+
                 return (
-                  <tr
-                    key={job.id}
-                    onClick={() => handleOpenJob(job)}
-                    className="hover:bg-slate-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-5 py-3.5 font-mono font-bold text-indigo-600">
-                      {job.job_number}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="font-semibold text-slate-900">{job.customer_name}</div>
-                      <div className="text-slate-500 text-[11px] font-mono">{job.customer_phone}</div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="font-medium text-slate-800">{job.brand_model}</div>
-                      <div className="text-slate-500 text-[11px]">{job.repair_needed}</div>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-700">
-                      {job.technician_name || 'Unassigned'}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="font-bold text-slate-900">
-                        ₹{job.quotation_amount?.toLocaleString() || 'Pending'}
+                  <tr key={job.id} className="hover:bg-indigo-50/20 transition-colors">
+                    <td className="px-4 py-3.5">
+                      <span className="font-mono font-bold text-indigo-600 block">
+                        {job.job_number || `JOB-${job.id}`}
                       </span>
-                      {job.is_quote_approved && (
-                        <span className="ml-1.5 text-[10px] text-emerald-600 font-bold">Approved</span>
+                      {job.invoice_number && (
+                        <span className="font-mono text-[10px] text-emerald-600 block font-bold">
+                          {job.invoice_number}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(job.created_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3.5">
+                      <div className="font-bold text-slate-900">{job.customer_name || 'Customer'}</div>
+                      <div className="text-[11px] font-mono text-slate-500">{job.customer_phone}</div>
+                      {job.customer_address && (
+                        <div className="text-[10px] text-slate-400 truncate max-w-[150px]">
+                          {job.customer_address}
+                        </div>
                       )}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusMeta.color}`}
-                      >
-                        {statusMeta.label}
-                      </span>
+
+                    <td className="px-4 py-3.5">
+                      <div className="font-bold text-slate-800">{job.device_description}</div>
+                      {job.part_name && <div className="text-[10px] text-slate-500 font-medium">Part: {job.part_name}</div>}
+                      {job.work_performed && (
+                        <div className="text-[10px] text-indigo-600 font-medium truncate max-w-[160px]">
+                          Work: {job.work_performed}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <button className="text-indigo-600 hover:text-indigo-800 font-bold">
-                        Edit & Quote →
-                      </button>
+
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <Wrench className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="font-medium">{job.technician_name || 'Unassigned'}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3.5">
+                      {getStatusBadge(job.status)}
+                    </td>
+
+                    <td className="px-4 py-3.5">
+                      <div className="font-mono font-bold text-slate-900 text-[12px]">
+                        ₹{Number(totalCustomer).toLocaleString('en-IN')}
+                      </div>
+                      {profit > 0 && (
+                        <div className="text-[10px] text-emerald-600 font-bold font-mono">
+                          +₹{Number(profit).toLocaleString('en-IN')} profit
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3.5 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white border border-emerald-200 transition-colors"
+                          title="WhatsApp Update"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+
+                        {!isJobCompleted && (
+                          <button
+                            onClick={() => openCompleteModal(job)}
+                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                            title="1-Click Mark Done & Delivered"
+                          >
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>Mark Done</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => setPrintInvoiceJob(job)}
+                          className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-200 transition-colors cursor-pointer"
+                          title="Print Customer Invoice"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => openEditModal(job)}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center gap-1"
+                          title="Edit Workshop Details"
+                        >
+                          <Edit className="w-3 h-3" />
+                          <span>Update</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
+
+              {filteredJobs.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-xs">
+                    No repair bookings found in this view.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Job Detail & Quotation Modal */}
-      {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-8 my-8 max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      {/* ── 1-Click Fast Complete & Deliver Modal ── */}
+      {completingJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-emerald-100 bg-emerald-50/50 flex items-center justify-between">
               <div>
-                <span className="text-xs font-mono font-bold text-indigo-600">
-                  {selectedJob.job_number}
+                <span className="text-xs font-mono font-bold text-emerald-700 block">
+                  {completingJob.job_number || `JOB-${completingJob.id}`}
                 </span>
-                <h2 className="text-xl font-extrabold text-slate-900">
-                  {selectedJob.customer_name} • {selectedJob.brand_model}
-                </h2>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Mark Done &amp; Deliver Device
+                </h3>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowPrintQuote(true)}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer"
-                  title="Print Quotation PDF"
-                >
-                  <Printer className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setSelectedJob(null)}
-                  className="p-2 text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Workflow Progression Stepper */}
-            <div className="py-4 border-b border-slate-100">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                Update Repair Status
-              </label>
-              <select
-                value={selectedJob.status}
-                onChange={(e) => handleUpdateJobStatus(e.target.value as JobStatus)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-indigo-700 font-bold focus:outline-none focus:border-indigo-500"
-              >
-                {JOB_STATUSES.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Diagnostics Notes */}
-            <div className="py-4 border-b border-slate-100 space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
-                Technician Diagnostic Notes & Test Results
-              </label>
-              <textarea
-                rows={2}
-                value={diagnosticNotes}
-                onChange={(e) => setDiagnosticNotes(e.target.value)}
-                placeholder="Log internal hardware diagnosis..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 resize-none font-medium"
-              />
-            </div>
-
-            {/* Itemized Quotation Builder */}
-            <div className="py-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Itemized Quotation Breakdown</h3>
-                  <p className="text-[11px] text-slate-500">Parts cost, labour, and GST</p>
-                </div>
-                <button
-                  onClick={handleAddQuoteItem}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-xs text-indigo-700 font-bold inline-flex items-center gap-1 cursor-pointer border border-indigo-200"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Item
-                </button>
-              </div>
-
-              <div className="space-y-2.5">
-                {quoteItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-12 gap-2 items-center text-xs"
-                  >
-                    <div className="col-span-5">
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => handleUpdateItem(idx, 'description', e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-900 focus:outline-none focus:border-indigo-500"
-                        placeholder="Description"
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <div className="flex items-center gap-1">
-                        <span className="text-slate-500 text-[10px]">Part ₹</span>
-                        <input
-                          type="number"
-                          value={item.part_cost}
-                          onChange={(e) => handleUpdateItem(idx, 'part_cost', Number(e.target.value))}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div className="col-span-3">
-                      <div className="flex items-center gap-1">
-                        <span className="text-slate-500 text-[10px]">Labour ₹</span>
-                        <input
-                          type="number"
-                          value={item.labour_cost}
-                          onChange={(e) => handleUpdateItem(idx, 'labour_cost', Number(e.target.value))}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div className="col-span-1 text-right">
-                      {quoteItems.length > 1 && (
-                        <button
-                          onClick={() => handleRemoveQuoteItem(idx)}
-                          className="text-rose-500 hover:text-rose-700 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Quotation Summary Totals */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Subtotal Parts & Labour</span>
-                  <span className="text-slate-900 font-mono font-bold">₹{quoteSubtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>GST (18%)</span>
-                  <span className="text-slate-900 font-mono font-bold">₹{gstAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm font-extrabold text-slate-900 pt-2 border-t border-slate-200">
-                  <span>Grand Total (Payable on Delivery)</span>
-                  <span className="text-indigo-600 font-mono">₹{grandTotal.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Bottom Actions */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
               <button
-                onClick={() => {
-                  setSelectedJob({ ...selectedJob, is_quote_approved: !selectedJob.is_quote_approved });
-                }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
-                  selectedJob.is_quote_approved
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+                onClick={() => setCompletingJob(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-100 cursor-pointer"
               >
-                {selectedJob.is_quote_approved ? '✓ Quotation Approved by Customer' : 'Mark Customer Approved'}
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCompleteSubmit} className="p-6 space-y-4 text-xs">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="font-bold text-slate-900">{completingJob.customer_name} ({completingJob.customer_phone})</div>
+                <div className="text-slate-600">{completingJob.device_description}</div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Work Performed Summary *</label>
+                <input
+                  type="text"
+                  required
+                  value={completionWorkDone}
+                  onChange={(e) => setCompletionWorkDone(e.target.value)}
+                  placeholder="e.g. OEM Screen replaced, tested, and sealed with 90-day warranty"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Assigned Admin</label>
+                <select
+                  value={completionTechId}
+                  onChange={(e) => setCompletionTechId(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">-- Keep Current Admin --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.first_name || u.username} (Admin)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Toggles */}
+              <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={completionPaymentDone}
+                    onChange={(e) => setCompletionPaymentDone(e.target.checked)}
+                    className="rounded accent-emerald-600 w-4 h-4"
+                  />
+                  <span>Payment received from customer (Paid status)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={completionDelivered}
+                    onChange={(e) => setCompletionDelivered(e.target.checked)}
+                    className="rounded accent-emerald-600 w-4 h-4"
+                  />
+                  <span>Device returned &amp; delivered to customer</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={completionGenInvoice}
+                    onChange={(e) => setCompletionGenInvoice(e.target.checked)}
+                    className="rounded accent-emerald-600 w-4 h-4"
+                  />
+                  <span>Generate official Tax Invoice number</span>
+                </label>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCompletingJob(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isCompleting}
+                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/25 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {isCompleting ? 'Completing...' : 'Complete & Generate Invoice'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Update Booking Modal ── */}
+      {selectedJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-xs font-mono font-bold text-indigo-600 block">
+                  {selectedJob.job_number || `JOB-${selectedJob.id}`}
+                </span>
+                <h3 className="text-lg font-black text-slate-900">
+                  Update Workshop Repair Order
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Customer: {selectedJob.customer_name} ({selectedJob.customer_phone}) • {selectedJob.device_description}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="p-2 text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 text-xs flex-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Repair Order Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="scheduled">Scheduled / Assigned</option>
+                    <option value="in_progress">In Progress (Bench Repair)</option>
+                    <option value="completed">Completed (Done &amp; Delivered)</option>
+                    <option value="rework">Rework Required</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Assigned Admin</label>
+                  <select
+                    value={editTechnician}
+                    onChange={(e) => setEditTechnician(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">-- Unassigned --</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.first_name || u.username} (Admin)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {editStatus === 'rework' && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
+                  <label className="block font-bold text-rose-800 mb-1">Rework Reason *</label>
+                  <input
+                    type="text"
+                    value={editReworkReason}
+                    onChange={(e) => setEditReworkReason(e.target.value)}
+                    placeholder="e.g. Touch flickering or adhesive lifting, needs re-gluing..."
+                    className="w-full bg-white border border-rose-300 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
+
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="font-bold text-slate-700 text-xs mb-2 uppercase tracking-wider">
+                  Diagnostics &amp; Work Performed
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Intake Diagnosis</label>
+                    <textarea
+                      rows={2}
+                      value={editDiagnosis}
+                      onChange={(e) => setEditDiagnosis(e.target.value)}
+                      placeholder="e.g. Digitizer damaged, display test ok..."
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Work Done</label>
+                    <textarea
+                      rows={2}
+                      value={editWorkPerformed}
+                      onChange={(e) => setEditWorkPerformed(e.target.value)}
+                      placeholder="e.g. Frame cleaned, new OEM display fitted and sealed..."
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Margin Tracker */}
+              <div className="border-t border-slate-100 pt-3 space-y-3">
+                <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center justify-between">
+                  <span>Parts &amp; Profit Calculation</span>
+                  <span className="text-[11px] text-emerald-600 font-mono font-extrabold">
+                    Net Profit: ₹{calculatedInternalProfit.toLocaleString('en-IN')}
+                  </span>
+                </h4>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Vendor Cost Price (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editVendorCost}
+                      onChange={(e) => setEditVendorCost(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Product Price (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editProductPrice}
+                      onChange={(e) => setEditProductPrice(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Service Charges (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editServiceCharges}
+                      onChange={(e) => setEditServiceCharges(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-900 rounded-xl text-white flex items-center justify-between">
+                  <span className="text-xs text-slate-300">Total Customer Payable:</span>
+                  <span className="text-base font-extrabold text-white font-mono">
+                    ₹{calculatedTotalCharge.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
               </button>
 
               <button
-                onClick={() => setSelectedJob(null)}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer shadow-md shadow-indigo-600/20"
+                onClick={handleSaveJob}
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/25 transition-all cursor-pointer"
               >
-                Save & Close
+                {isSaving ? 'Updating...' : 'Save Workshop Record'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Printable Quotation View */}
-      {showPrintQuote && selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-white text-slate-900 rounded-3xl shadow-2xl p-8 my-8 print:p-0">
-            <button
-              onClick={() => setShowPrintQuote(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-800 print:hidden"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-start">
+      {/* ── Printable Invoice Modal ── */}
+      {printInvoiceJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 print:p-0">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-8 print:p-0 print:border-none print:shadow-none flex flex-col max-h-[95vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-6">
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                  Premium Mobile Repair
-                </h1>
-                <p className="text-xs text-slate-600">
-                  Doorstep Device Diagnostics & Lab Services • Bangalore, Karnataka
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Premium Mobile Repair</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  #159, 1st Floor 32nd E Cross Rd, Tilak Nagar, Jayanagar, Bengaluru 560041
                 </p>
-                <p className="text-xs text-slate-600">Phone: +91 99860 97786 • premiummobileservice3@gmail.com</p>
+                <p className="text-xs text-slate-500">Phone: +91 99860 97786 | Email: premiummobileservice3@gmail.com</p>
               </div>
               <div className="text-right">
-                <span className="text-xs font-mono font-bold uppercase px-2.5 py-1 bg-slate-100 rounded text-slate-800">
-                  QUOTATION
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 block mb-1">
+                  TAX INVOICE
                 </span>
-                <p className="text-xs font-mono text-slate-600 mt-2">
-                  Ref: {selectedJob.job_number}
-                </p>
-                <p className="text-xs text-slate-500">Date: {new Date().toLocaleDateString()}</p>
+                <span className="text-xs font-mono font-bold text-slate-700">
+                  {printInvoiceJob.invoice_number || `PMR-INV-${printInvoiceJob.id}`}
+                </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6 text-xs border border-slate-200 p-4 rounded-xl bg-slate-50">
+            {/* Customer & Device Meta */}
+            <div className="grid grid-cols-2 gap-4 py-6 border-b border-slate-100 text-xs">
               <div>
-                <span className="font-bold text-slate-500 block mb-0.5">CUSTOMER:</span>
-                <div className="font-semibold text-slate-900">{selectedJob.customer_name}</div>
-                <div className="text-slate-600">{selectedJob.customer_phone}</div>
-                <div className="text-slate-600">{selectedJob.pickup_address}</div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Billed To:</span>
+                <div className="font-bold text-slate-900 text-sm">{printInvoiceJob.customer_name}</div>
+                <div className="text-slate-600">{printInvoiceJob.customer_phone}</div>
+                <div className="text-slate-600">{printInvoiceJob.customer_address || printInvoiceJob.pickup_address}</div>
               </div>
-              <div>
-                <span className="font-bold text-slate-500 block mb-0.5">DEVICE DETAILS:</span>
-                <div className="font-semibold text-slate-900">{selectedJob.brand_model}</div>
-                <div className="text-slate-600">Issue: {selectedJob.repair_needed}</div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Service Details:</span>
+                <div className="font-bold text-slate-900 text-sm">{printInvoiceJob.device_description}</div>
+                <div className="text-slate-600">Date: {new Date(printInvoiceJob.created_at).toLocaleDateString()}</div>
+                <div className="text-emerald-600 font-bold">Status: {printInvoiceJob.status}</div>
               </div>
             </div>
 
-            <table className="w-full text-left text-xs mb-6">
-              <thead>
-                <tr className="border-b-2 border-slate-900">
-                  <th className="py-2 font-bold">Item Description</th>
-                  <th className="py-2 text-right font-bold">Parts</th>
-                  <th className="py-2 text-right font-bold">Labour</th>
-                  <th className="py-2 text-right font-bold">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {quoteItems.map((it, idx) => (
-                  <tr key={idx}>
-                    <td className="py-2 font-medium">{it.description}</td>
-                    <td className="py-2 text-right">₹{it.part_cost}</td>
-                    <td className="py-2 text-right">₹{it.labour_cost}</td>
-                    <td className="py-2 text-right font-bold">₹{it.total}</td>
+            {/* Line items table */}
+            <div className="py-4">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 border-y border-slate-200 uppercase text-[10px]">
+                  <tr>
+                    <th className="py-2.5 px-3">Description</th>
+                    <th className="py-2.5 px-3 text-right">Amount (₹)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  <tr>
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-slate-800">
+                        {printInvoiceJob.part_name || `${printInvoiceJob.device_description} Replacement Spare`}
+                      </div>
+                      <div className="text-[11px] text-slate-500">Genuine OEM specification component with replacement warranty</div>
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                      ₹{Number(printInvoiceJob.product_price || printInvoiceJob.quotation_amount || 0).toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-slate-800">Professional Bench Diagnostics, Fitting &amp; Doorstep Delivery</div>
+                      <div className="text-[11px] text-slate-500">Ultrasonic seal, thermal dissipation &amp; multi-point QA check</div>
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                      ₹{Number(printInvoiceJob.service_charges || 0).toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-            <div className="border-t-2 border-slate-900 pt-3 flex flex-col items-end text-xs space-y-1">
-              <div className="flex justify-between w-48 text-slate-600">
-                <span>Subtotal:</span>
-                <span className="font-bold text-slate-900">₹{quoteSubtotal.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between w-48 text-slate-600">
-                <span>GST (18%):</span>
-                <span className="font-bold text-slate-900">₹{gstAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between w-48 text-sm font-bold text-slate-900 pt-1 border-t border-slate-300">
-                <span>Grand Total:</span>
-                <span className="text-indigo-600 font-extrabold">₹{grandTotal.toLocaleString()}</span>
+              <div className="mt-4 pt-4 border-t border-slate-200 flex justify-end">
+                <div className="w-64 space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-mono">₹{Number(printInvoiceJob.total_customer_charge || printInvoiceJob.product_price || printInvoiceJob.quotation_amount || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>GST (Included):</span>
+                    <span className="font-mono">18%</span>
+                  </div>
+                  <div className="flex justify-between text-base font-extrabold text-slate-900 border-t border-slate-200 pt-2">
+                    <span>Total Billed Amount:</span>
+                    <span className="font-mono text-indigo-600">
+                      ₹{Number(printInvoiceJob.total_customer_charge || printInvoiceJob.product_price || printInvoiceJob.quotation_amount || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-200 text-[10px] text-slate-500 space-y-1">
-              <p>• Diagnosis before repair: Work only begins following customer verbal/written approval.</p>
-              <p>• Payment terms: Payable on satisfactory return delivery to your Bangalore doorstep.</p>
+            {/* Terms */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-[10px] text-slate-500 space-y-1">
+              <span className="font-bold text-slate-700 block uppercase">Warranty &amp; Service Terms:</span>
+              <p>• Display replacements include 90 days touch warranty. Battery replacements include 180 days warranty.</p>
+              <p>• Physical damage, water ingress post-repair, and customer tampering void warranty coverage.</p>
             </div>
 
-            <div className="mt-6 flex justify-end gap-3 print:hidden">
+            {/* Modal Actions */}
+            <div className="pt-6 flex items-center justify-between print:hidden">
+              <button
+                onClick={() => setPrintInvoiceJob(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Close
+              </button>
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition-all cursor-pointer shadow-md"
               >
-                Print / Save as PDF
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Invoice</span>
               </button>
             </div>
           </div>

@@ -39,40 +39,20 @@ class Command(BaseCommand):
         admin, created = User.objects.get_or_create(
             username="admin",
             defaults={
-                "email": "admin@demo.local",
-                "first_name": "Demo",
-                "last_name": "Admin",
+                "email": "admin@premiummobilerepair.in",
+                "first_name": "Admin",
+                "last_name": "User",
                 "role": "admin",
                 "is_staff": True,
                 "is_superuser": True,
             },
         )
-        if created:
-            admin.set_password("demo1234!")
-            admin.save()
-            self.stdout.write(self.style.SUCCESS("  ✓ Admin user created: admin / demo1234!"))
-        else:
-            self.stdout.write("  · Admin user already exists.")
-
-        # Staff users
-        for username, role, name in [
-            ("manager1", "manager", "Priya Manager"),
-            ("telecaller1", "telecaller", "Rahul Caller"),
-            ("tech1", "technician", "Suresh Tech"),
-        ]:
-            first, last = name.split(" ")
-            user, created = User.objects.get_or_create(
-                username=username,
-                defaults={
-                    "email": f"{username}@demo.local",
-                    "first_name": first,
-                    "last_name": last,
-                    "role": role,
-                    "is_staff": True,
-                },
-            )
-            if created:
-                user.set_password("demo1234!")
+        admin.set_password("admin@123")
+        admin.role = "admin"
+        admin.is_staff = True
+        admin.is_superuser = True
+        admin.save()
+        self.stdout.write(self.style.SUCCESS("  ✓ Admin user configured: admin / admin@123"))
                 user.save()
                 self.stdout.write(self.style.SUCCESS(f"  ✓ {role.title()}: {username} / demo1234!"))
 

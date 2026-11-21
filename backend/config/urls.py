@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -11,6 +12,11 @@ from drf_spectacular.views import (
 )
 
 urlpatterns = [
+    # Health checks
+    path("health", lambda r: JsonResponse({"status": "ok", "app": "Premium Mobile Repair"})),
+    path("health/", lambda r: JsonResponse({"status": "ok", "app": "Premium Mobile Repair"})),
+    path("api/health/", lambda r: JsonResponse({"status": "ok", "app": "Premium Mobile Repair"})),
+
     # Django admin (keep for superuser access)
     path("admin/", admin.site.urls),
 

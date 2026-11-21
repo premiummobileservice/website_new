@@ -77,18 +77,15 @@ npm run dev
 
 ---
 
-## 3. Staff CRM Access & Default Role Credentials
+## 3. Admin Control Panel Access & Credentials
 
 Visit `http://localhost:5173/crm/login`.
 
 | Role | Username | Password | Permitted Views & Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `admin` | `admin123` | Full system access, User Management, Email Settings, System Config |
-| **Manager** | `manager` | `manager123` | Leads Pipeline, Jobs, Customers, Reports & Analytics, Export CSV |
-| **Technician** | `technician` | `tech123` | Assigned Repair Jobs, Diagnostics, Quotation Builder & PDF Print |
-| **Telecaller** | `telecaller` | `tele123` | Leads Pipeline, Call Logs, Internal Notes, Pickup Scheduling |
+| **Admin** | `admin` | `admin@123` | Full system control, Enquiries, Bookings, Invoices, Customers, Reports & Admin Users |
 
-*(The login screen also provides quick-fill buttons for immediate role testing).*
+*(The login screen also provides a 1-click auto-fill button for immediate admin testing).*
 
 ---
 

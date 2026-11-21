@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'manager' | 'technician' | 'telecaller';
+export type Role = 'admin' | string;
 
 export interface User {
   id: number;
@@ -6,16 +6,20 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  full_name?: string;
   role: Role;
   phone?: string;
+  is_active?: boolean;
+  date_joined?: string;
 }
 
 export type LeadStatus =
   | 'new'
   | 'contacted'
-  | 'callback_later'
-  | 'wrong_number'
   | 'interested'
+  | 'callback_later'
+  | 'not_interested'
+  | 'wrong_number'
   | 'pickup_scheduled'
   | 'device_collected'
   | 'quote_sent'
@@ -25,7 +29,8 @@ export type LeadStatus =
   | 'delivered'
   | 'completed'
   | 'declined'
-  | 'lost';
+  | 'lost'
+  | 'cancelled';
 
 export type DeviceType = 'smartphone' | 'tablet' | 'laptop' | 'other';
 
@@ -41,6 +46,7 @@ export interface Lead {
   brand_model: string;
   device_brand?: string;
   device_model?: string;
+  device_description?: string;
   repair_needed: string;
   problem_description?: string;
   area: string;
@@ -51,11 +57,25 @@ export interface Lead {
   internal_notes?: string;
   assigned_to?: number | null;
   assigned_to_name?: string;
+  callback_date?: string;
+  callback_time?: string;
+  callback_notes?: string;
+  rejection_reason?: string;
+  rejection_notes?: string;
+  part_name?: string;
+  vendor_name?: string;
+  vendor_cost?: number;
+  product_price?: number;
+  service_charges?: number;
+  total_customer_charge?: number;
+  internal_profit?: number;
+  has_job?: boolean;
+  is_archived?: boolean;
   created_at: string;
   updated_at: string;
   lost_reason?: string;
   declined_reason?: string;
-  job_id?: number | null;
+  job_id?: number | string | null;
 }
 
 export interface Activity {
@@ -68,6 +88,8 @@ export interface Activity {
 }
 
 export type JobStatus =
+  | 'pending'
+  | 'scheduled'
   | 'pending_pickup'
   | 'scheduled_pickup'
   | 'received_at_hub'
@@ -75,13 +97,18 @@ export type JobStatus =
   | 'quote_pending_approval'
   | 'quote_approved'
   | 'approved_in_progress'
+  | 'in_progress'
   | 'waiting_for_parts'
   | 'qc_testing'
   | 'repaired'
+  | 'ready_for_delivery'
   | 'out_for_delivery'
   | 'delivered'
   | 'delivered_collected'
-  | 'returned_unrepaired';
+  | 'completed'
+  | 'rework'
+  | 'returned_unrepaired'
+  | 'cancelled';
 
 export interface QuotationItem {
   id?: number;
@@ -94,26 +121,41 @@ export interface QuotationItem {
 export interface RepairJob {
   id: number;
   job_number: string;
+  job_id?: string;
   lead: number;
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
+  customer_address?: string;
   device_type: string;
   brand_model: string;
   device_brand?: string;
   device_model?: string;
+  device_description?: string;
   repair_needed: string;
   status: JobStatus;
   technician?: number | null;
   technician_name?: string;
   diagnostic_notes?: string;
+  diagnosis_notes?: string;
   work_notes?: string;
+  confirmed_issue?: string;
+  work_performed?: string;
+  parts_used_notes?: string;
+  rework_reason?: string;
+  part_name?: string;
+  vendor_name?: string;
+  vendor_cost?: number;
+  product_price?: number;
+  service_charges?: number;
+  total_customer_charge?: number;
+  internal_profit?: number;
   quotation_amount?: number;
   estimated_quote?: number;
   final_amount?: number;
   final_quote?: number;
   amount_paid?: number;
-  payment_status?: 'paid' | 'pending' | 'partial' | 'unpaid';
+  payment_status?: 'paid' | 'pending' | 'partial' | 'unpaid' | 'refunded';
   payment_method?: string;
   invoice_number?: string;
   invoice_date?: string;

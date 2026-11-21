@@ -82,15 +82,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenBookingModal }) => {
             <div className="space-y-6">
               <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-md">
                 <img
-                  src="/images/about_workbench.jpg"
+                  src="/images/hero_lab.jpg"
                   alt="High-precision electronic diagnostic workstation in Bangalore"
-                  className="w-full h-64 object-cover"
+                  className="w-full h-72 object-cover"
                 />
               </div>
 
               <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-4">
                 <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
-                  Bangalore Pickup & Diagnosis Checklist
+                  Bangalore Pickup &amp; Diagnosis Checklist
                 </h3>
                 <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
                   <li className="flex items-center gap-2.5">
@@ -115,9 +115,59 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenBookingModal }) => {
                   </li>
                   <li className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>Safe return delivery & verification before payment</span>
+                    <span>Safe return delivery &amp; verification before payment</span>
                   </li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Doorstep Handover Experience Showcase */}
+      <section className="py-20 bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xl order-2 lg:order-1">
+              <img
+                src="/images/doorstep_delivery.jpg"
+                alt="Doorstep pickup and return delivery service in Bangalore"
+                className="w-full h-[400px] object-cover"
+              />
+            </div>
+
+            <div className="order-1 lg:order-2 space-y-5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5" /> Doorstep Handover Protocol
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+                Tamper-Proof Pouch &amp; Verified Delivery Right at Your Door
+              </h2>
+              <p className="text-slate-600 text-sm leading-relaxed">
+                No need to brave Bangalore traffic or queue in crowded service centers. Our field technician arrives at your home or workplace with a barcode-serialized tamper-proof security pouch.
+              </p>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <h4 className="font-bold text-slate-900 text-xs">Zero Data Access</h4>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Your personal passwords, photos, and accounts stay 100% confidential.
+                  </p>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <h4 className="font-bold text-slate-900 text-xs">Verify Before Paying</h4>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Test your screen and camera completely upon return before paying via UPI or Card.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-2">
+                <button
+                  onClick={() => onOpenBookingModal()}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-lg cursor-pointer text-xs"
+                >
+                  <span>Schedule Free Doorstep Pickup</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>

@@ -59,6 +59,56 @@ class PublicLeadSerializer(serializers.ModelSerializer):
             "gclid", "landing_page", "referrer",
         ]
 
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, "copy") else dict(data)
+        if "customer_name" in data and not data.get("name"):
+            data["name"] = data["customer_name"]
+        if "customer_phone" in data and not data.get("phone"):
+            data["phone"] = data["customer_phone"]
+        if "customer_email" in data and not data.get("email"):
+            data["email"] = data["customer_email"]
+        if "device_model_text" in data and not data.get("brand_model"):
+            data["brand_model"] = data["device_model_text"]
+        elif not data.get("brand_model") and (data.get("brand") or data.get("model")):
+            b = data.get("brand", "")
+            m = data.get("model", "")
+            data["brand_model"] = f"{b} {m}".strip() or "Device"
+
+        if "reported_problem" in data and not data.get("repair_needed"):
+            data["repair_needed"] = data["reported_problem"]
+        elif "issue_type" in data and not data.get("repair_needed"):
+            data["repair_needed"] = data["issue_type"]
+
+        if "description" in data and not data.get("issue_description"):
+            data["issue_description"] = data["description"]
+
+        if "pickup_area" in data and not data.get("area"):
+            pincode = data.get("pickup_pincode", "")
+            data["area"] = f"{data['pickup_area']} ({pincode})".strip() if pincode else data["pickup_area"]
+        elif data.get("pin_code") and data.get("area") and data.get("pin_code") not in data.get("area", ""):
+            data["area"] = f"{data['area']} ({data['pin_code']})"
+
+        if "privacy_consent" in data and "consent" not in data:
+            data["consent"] = data["privacy_consent"]
+        elif "consent" not in data:
+            data["consent"] = True
+
+        if "device_category" in data and not data.get("device_type"):
+            cat = str(data["device_category"]).lower()
+            if "iphone" in cat or "android" in cat or "phone" in cat:
+                data["device_type"] = "smartphone"
+            elif "macbook" in cat or "laptop" in cat:
+                data["device_type"] = "laptop"
+            elif "ipad" in cat or "tablet" in cat:
+                data["device_type"] = "tablet"
+            elif "watch" in cat:
+                data["device_type"] = "smartwatch"
+            else:
+                data["device_type"] = "other"
+        if not data.get("device_type"):
+            data["device_type"] = "smartphone"
+        return super().to_internal_value(data)
+
     def validate_phone(self, value):
         return validate_indian_phone(value)
 
@@ -132,18 +182,33 @@ class FollowUpSerializer(serializers.ModelSerializer):
 class LeadListSerializer(serializers.ModelSerializer):
     """Compact serializer for table/kanban views."""
     assigned_to_name = serializers.SerializerMethodField()
+    has_job = serializers.SerializerMethodField()
+    job_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
         fields = [
-            "id", "reference", "name", "phone", "device_type", "brand_model",
+            "id", "reference", "name", "phone", "email", "device_type", "brand_model",
             "repair_needed", "area", "status", "source", "assigned_to_name",
+            "callback_date", "callback_time", "callback_notes",
+            "rejection_reason", "rejection_notes",
+            "product_price", "vendor_cost", "vendor_name",
+            "service_charges", "total_customer_charge", "internal_profit",
+            "has_job", "job_id", "is_archived",
             "created_at", "updated_at",
         ]
 
     def get_assigned_to_name(self, obj):
         if obj.assigned_to:
             return obj.assigned_to.get_full_name() or obj.assigned_to.username
+        return None
+
+    def get_has_job(self, obj):
+        return hasattr(obj, "repair_job") and obj.repair_job is not None
+
+    def get_job_id(self, obj):
+        if hasattr(obj, "repair_job") and obj.repair_job is not None:
+            return obj.repair_job.job_id
         return None
 
 
@@ -153,6 +218,8 @@ class LeadDetailSerializer(serializers.ModelSerializer):
     notes = NoteSerializer(many=True, read_only=True)
     follow_ups = FollowUpSerializer(many=True, read_only=True)
     assigned_to_detail = UserSerializer(source="assigned_to", read_only=True)
+    has_job = serializers.SerializerMethodField()
+    job_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
@@ -161,13 +228,26 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             "name", "phone", "email",
             "device_type", "brand_model", "repair_needed", "area", "issue_description",
             "consent", "status", "lost_reason", "declined_reason",
+            "callback_date", "callback_time", "callback_notes",
+            "rejection_reason", "rejection_notes",
+            "product_price", "vendor_cost", "vendor_name",
+            "service_charges", "total_customer_charge", "internal_profit",
             "source", "utm_source", "utm_medium", "utm_campaign", "utm_term",
             "gclid", "landing_page", "referrer",
             "assigned_to", "assigned_to_detail",
+            "has_job", "job_id", "is_archived",
             "activities", "notes", "follow_ups",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "reference", "created_at", "updated_at"]
+
+    def get_has_job(self, obj):
+        return hasattr(obj, "repair_job") and obj.repair_job is not None
+
+    def get_job_id(self, obj):
+        if hasattr(obj, "repair_job") and obj.repair_job is not None:
+            return obj.repair_job.job_id
+        return None
 
 
 class LeadCreateManualSerializer(serializers.ModelSerializer):

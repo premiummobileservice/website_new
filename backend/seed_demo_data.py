@@ -10,12 +10,9 @@ from core.models import Service, ServiceArea
 
 User = get_user_model()
 
-# 1. Create Staff Users
+# 1. Create Admin User
 users_to_create = [
-    {"username": "admin", "email": "admin@premiummobilerepair.in", "role": "admin", "password": "admin123", "first_name": "Admin", "last_name": "User", "is_staff": True, "is_superuser": True},
-    {"username": "manager", "email": "manager@premiummobilerepair.in", "role": "manager", "password": "manager123", "first_name": "Sanjay", "last_name": "Deshmukh", "is_staff": True},
-    {"username": "technician", "email": "tech@premiummobilerepair.in", "role": "technician", "password": "tech123", "first_name": "Rajesh", "last_name": "Kumar", "is_staff": True},
-    {"username": "telecaller", "email": "tele@premiummobilerepair.in", "role": "telecaller", "password": "tele123", "first_name": "Anita", "last_name": "Rao", "is_staff": True},
+    {"username": "admin", "email": "admin@premiummobilerepair.in", "role": "admin", "password": "admin@123", "first_name": "Admin", "last_name": "User", "is_staff": True, "is_superuser": True},
 ]
 
 for u in users_to_create:

@@ -144,8 +144,38 @@ class LeadViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = Lead.objects.select_related("assigned_to")
         # Technicians don't see leads (only jobs)
-        if user.role == "technician":
+        if getattr(user, "role", "") == "technician":
             return Lead.objects.none()
+
+        # Archive filter
+        show_archived = self.request.query_params.get("archived") == "true"
+        if show_archived:
+            qs = qs.filter(is_archived=True)
+        else:
+            qs = qs.filter(is_archived=False)
+
+        # Status filter
+        status_param = self.request.query_params.get("status")
+        if status_param and status_param != "all":
+            if status_param == "rejected":
+                qs = qs.filter(status__in=[Lead.Status.NOT_INTERESTED, Lead.Status.WRONG_NUMBER])
+            elif status_param in ["not_interested", Lead.Status.NOT_INTERESTED]:
+                qs = qs.filter(status=Lead.Status.NOT_INTERESTED)
+            elif status_param in ["wrong_number", Lead.Status.WRONG_NUMBER]:
+                qs = qs.filter(status=Lead.Status.WRONG_NUMBER)
+            else:
+                qs = qs.filter(status=status_param)
+
+        # Callback filters
+        callback_filter = self.request.query_params.get("callback_filter")
+        today = timezone.now().date()
+        if callback_filter == "due_today":
+            qs = qs.filter(status=Lead.Status.CALLBACK_LATER, callback_date=today)
+        elif callback_filter == "overdue":
+            qs = qs.filter(status=Lead.Status.CALLBACK_LATER, callback_date__lt=today)
+        elif callback_filter == "upcoming":
+            qs = qs.filter(status=Lead.Status.CALLBACK_LATER, callback_date__gt=today)
+
         return qs
 
     def get_serializer_class(self):
@@ -242,25 +272,261 @@ class LeadViewSet(viewsets.ModelViewSet):
         acts = Activity.objects.filter(lead=lead)
         return Response(ActivitySerializer(acts, many=True).data)
 
+    @action(detail=True, methods=["post"], url_path="action")
+    def lead_action(self, request, pk=None):
+        """
+        4-Action CRM Pipeline Endpoint (matching fixurdevice):
+        1. interested -> Sets status=interested, creates/links RepairJob with technician & pricing.
+        2. callback_later -> Sets status=callback_later, callback_date, callback_time, callback_notes.
+        3. not_interested -> Sets status=not_interested, rejection_reason, rejection_notes.
+        4. wrong_number -> Sets status=wrong_number, rejection_reason='Wrong Number'.
+        """
+        lead = self.get_object()
+        data = request.data
+        action_name = data.get("action", "").lower()
+        from jobs.models import RepairJob
+        from decimal import Decimal
+
+        if action_name in ["interested", "booking"]:
+            lead.status = Lead.Status.INTERESTED
+            technician_id = data.get("technician") or data.get("assigned_technician")
+            product_price = Decimal(str(data.get("product_price", 0) or 0))
+            vendor_cost = Decimal(str(data.get("vendor_cost", 0) or 0))
+            vendor_name = data.get("vendor_name", "")
+            part_name = data.get("part_name", "")
+            service_charges = Decimal(str(data.get("service_charges", 0) or 0))
+            total_charge = Decimal(str(data.get("total_customer_charge", 0) or (product_price + service_charges)))
+            internal_profit = Decimal(str(data.get("internal_profit", 0) or (total_charge - vendor_cost)))
+
+            lead.product_price = product_price
+            lead.vendor_cost = vendor_cost
+            lead.vendor_name = vendor_name
+            lead.service_charges = service_charges
+            lead.total_customer_charge = total_charge
+            lead.internal_profit = internal_profit
+
+            # Create or update RepairJob
+            job, created = RepairJob.objects.get_or_create(
+                lead=lead,
+                defaults={
+                    "device_description": f"{lead.brand_model} – {lead.repair_needed}",
+                    "status": RepairJob.Status.SCHEDULED,
+                    "pickup_address": lead.area,
+                    "diagnosis_notes": data.get("notes", "") or data.get("diagnosis", ""),
+                    "part_name": part_name,
+                    "vendor_name": vendor_name,
+                    "vendor_cost": vendor_cost,
+                    "product_price": product_price,
+                    "service_charges": service_charges,
+                    "total_customer_charge": total_charge,
+                    "internal_profit": internal_profit,
+                }
+            )
+            if not created:
+                job.part_name = part_name or job.part_name
+                job.vendor_name = vendor_name or job.vendor_name
+                job.vendor_cost = vendor_cost or job.vendor_cost
+                job.product_price = product_price or job.product_price
+                job.service_charges = service_charges or job.service_charges
+                job.total_customer_charge = total_charge or job.total_customer_charge
+                job.internal_profit = internal_profit or job.internal_profit
+                if data.get("notes"):
+                    job.diagnosis_notes = data.get("notes")
+
+            if technician_id:
+                try:
+                    job.technician = User.objects.get(pk=technician_id)
+                except User.DoesNotExist:
+                    pass
+            job.save()
+            lead.save()
+
+            Activity.objects.create(
+                lead=lead,
+                user=request.user,
+                activity_type=Activity.ActivityType.JOB_CREATED,
+                text=f"Action: Interested. Linked to Repair Job {job.job_id}.",
+            )
+            return Response(LeadDetailSerializer(lead).data, status=status.HTTP_200_OK)
+
+        elif action_name in ["callback_later", "callback"]:
+            lead.status = Lead.Status.CALLBACK_LATER
+            lead.callback_date = data.get("callback_date") or None
+            lead.callback_time = data.get("callback_time", "")
+            lead.callback_notes = data.get("callback_notes", "") or data.get("notes", "")
+            lead.save()
+
+            Activity.objects.create(
+                lead=lead,
+                user=request.user,
+                activity_type=Activity.ActivityType.FOLLOW_UP,
+                text=f"Action: Call Back Later on {lead.callback_date} at {lead.callback_time}. Note: {lead.callback_notes}",
+            )
+            return Response(LeadDetailSerializer(lead).data, status=status.HTTP_200_OK)
+
+        elif action_name in ["not_interested", "rejected"]:
+            lead.status = Lead.Status.NOT_INTERESTED
+            lead.rejection_reason = data.get("rejection_reason", "Customer not interested")
+            lead.rejection_notes = data.get("rejection_notes", "") or data.get("notes", "")
+            lead.save()
+
+            Activity.objects.create(
+                lead=lead,
+                user=request.user,
+                activity_type=Activity.ActivityType.STATUS_CHANGE,
+                text=f"Action: Not Interested ({lead.rejection_reason}). Note: {lead.rejection_notes}",
+            )
+            return Response(LeadDetailSerializer(lead).data, status=status.HTTP_200_OK)
+
+        elif action_name in ["wrong_number"]:
+            lead.status = Lead.Status.WRONG_NUMBER
+            lead.rejection_reason = "Wrong Number"
+            lead.rejection_notes = data.get("notes", "") or data.get("rejection_notes", "Verified as wrong number")
+            lead.save()
+
+            Activity.objects.create(
+                lead=lead,
+                user=request.user,
+                activity_type=Activity.ActivityType.STATUS_CHANGE,
+                text=f"Action: Wrong Number. Note: {lead.rejection_notes}",
+            )
+            return Response(LeadDetailSerializer(lead).data, status=status.HTTP_200_OK)
+
+        elif action_name in ["reopen", "restore"]:
+            lead.status = Lead.Status.NEW
+            lead.save()
+            Activity.objects.create(
+                lead=lead,
+                user=request.user,
+                activity_type=Activity.ActivityType.STATUS_CHANGE,
+                text="Enquiry restored to New status.",
+            )
+            return Response(LeadDetailSerializer(lead).data, status=status.HTTP_200_OK)
+
+        return Response({"error": "Unknown action"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"], url_path="archive")
+    def archive_lead(self, request, pk=None):
+        """Soft archive, restore, or permanent delete an enquiry matching fixurdevice."""
+        try:
+            lead = Lead.objects.get(pk=pk)
+        except Lead.DoesNotExist:
+            return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        action_type = request.data.get("action", "")
+        permanent = request.data.get("permanent", False) or action_type == "delete"
+
+        if permanent:
+            lead_ref = lead.reference
+            lead.delete()
+            return Response({"detail": f"Lead {lead_ref} deleted permanently.", "deleted": True})
+        elif action_type in ["unarchive", "restore"]:
+            lead.is_archived = False
+            lead.save()
+            Activity.objects.create(
+                lead=lead,
+                user=request.user if request.user.is_authenticated else None,
+                activity_type=Activity.ActivityType.STATUS_CHANGE,
+                text="Lead unarchived and restored to active pipeline.",
+            )
+            return Response({"detail": f"Lead {lead.reference} unarchived.", "archived": False})
+        else:
+            lead.is_archived = True
+            lead.save()
+            Activity.objects.create(
+                lead=lead,
+                user=request.user if request.user.is_authenticated else None,
+                activity_type=Activity.ActivityType.STATUS_CHANGE,
+                text="Lead archived.",
+            )
+            return Response({"detail": f"Lead {lead.reference} archived safely.", "archived": True})
+
+    @action(detail=False, methods=["get"], url_path="stats")
+    def stats(self, request):
+        """Aggregate stats for CRM Dashboard matching fixurdevice."""
+        from django.db.models import Sum
+        from jobs.models import RepairJob
+        today = timezone.now().date()
+
+        enquiries_total = Lead.objects.count()
+        enquiries_today = Lead.objects.filter(created_at__date=today).count()
+        enquiries_new = Lead.objects.filter(status=Lead.Status.NEW).count()
+        enquiries_interested = Lead.objects.filter(status=Lead.Status.INTERESTED).count()
+
+        callbacks_due_today = Lead.objects.filter(status=Lead.Status.CALLBACK_LATER, callback_date=today).count()
+        callbacks_overdue = Lead.objects.filter(status=Lead.Status.CALLBACK_LATER, callback_date__lt=today).count()
+        callbacks_upcoming = Lead.objects.filter(status=Lead.Status.CALLBACK_LATER, callback_date__gt=today).count()
+        callbacks_total = Lead.objects.filter(status=Lead.Status.CALLBACK_LATER).count()
+
+        rejected_not_interested = Lead.objects.filter(status=Lead.Status.NOT_INTERESTED).count()
+        rejected_wrong_number = Lead.objects.filter(status=Lead.Status.WRONG_NUMBER).count()
+        rejected_total = rejected_not_interested + rejected_wrong_number
+
+        jobs_active = RepairJob.objects.exclude(status__in=[RepairJob.Status.COMPLETED, RepairJob.Status.DELIVERED, RepairJob.Status.CANCELLED]).count()
+        jobs_completed = RepairJob.objects.filter(status__in=[RepairJob.Status.COMPLETED, RepairJob.Status.DELIVERED]).count()
+        jobs_rework = RepairJob.objects.filter(status=RepairJob.Status.REWORK).count()
+        jobs_total = RepairJob.objects.count()
+
+        rev_aggr = RepairJob.objects.filter(status__in=[RepairJob.Status.COMPLETED, RepairJob.Status.DELIVERED]).aggregate(
+            total=Sum("total_customer_charge")
+        )
+        total_rev = float(rev_aggr.get("total") or 0)
+
+        pending_rev_aggr = RepairJob.objects.exclude(status__in=[RepairJob.Status.COMPLETED, RepairJob.Status.DELIVERED, RepairJob.Status.CANCELLED]).aggregate(
+            total=Sum("total_customer_charge")
+        )
+        pending_rev = float(pending_rev_aggr.get("total") or 0)
+
+        return Response({
+            "enquiries": {
+                "total": enquiries_total,
+                "new_today": enquiries_today,
+                "new_pending": enquiries_new,
+                "interested": enquiries_interested,
+            },
+            "callbacks": {
+                "due_today": callbacks_due_today,
+                "overdue": callbacks_overdue,
+                "upcoming": callbacks_upcoming,
+                "total": callbacks_total,
+            },
+            "rejected": {
+                "not_interested": rejected_not_interested,
+                "wrong_number": rejected_wrong_number,
+                "total": rejected_total,
+            },
+            "bookings": {
+                "active": jobs_active,
+                "completed": jobs_completed,
+                "rework": jobs_rework,
+                "total": jobs_total,
+            },
+            "invoices": {
+                "count": jobs_completed,
+                "total_revenue": total_rev,
+                "pending_revenue": pending_rev,
+            }
+        })
+
     @action(detail=True, methods=["post"], url_path="convert-to-job",
             permission_classes=[IsManagerOrAbove])
     def convert_to_job(self, request, pk=None):
         lead = self.get_object()
         from jobs.models import RepairJob
-        from jobs.serializers import RepairJobSerializer
 
         if hasattr(lead, "repair_job"):
             return Response(
                 {"detail": "A repair job already exists for this lead.",
-                 "job_id": lead.repair_job.pk},
+                 "job_id": lead.repair_job.pk, "job_ref": lead.repair_job.job_id},
                 status=status.HTTP_200_OK,
             )
         job = RepairJob.objects.create(
             lead=lead,
             device_description=f"{lead.brand_model} – {lead.repair_needed}",
-            status=RepairJob.Status.PICKUP_SCHEDULED,
+            status=RepairJob.Status.SCHEDULED,
+            pickup_address=lead.area,
         )
-        lead.status = Lead.Status.PICKUP_SCHEDULED
+        lead.status = Lead.Status.INTERESTED
         lead.save()
         Activity.objects.create(
             lead=lead,

@@ -8,14 +8,11 @@ class User(AbstractUser):
 
     class Role(models.TextChoices):
         ADMIN = "admin", "Admin"
-        MANAGER = "manager", "Manager"
-        TELECALLER = "telecaller", "Telecaller"
-        TECHNICIAN = "technician", "Technician"
 
     role = models.CharField(
         max_length=20,
         choices=Role.choices,
-        default=Role.TELECALLER,
+        default=Role.ADMIN,
     )
     phone = models.CharField(max_length=15, blank=True)
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
@@ -26,20 +23,20 @@ class User(AbstractUser):
         ordering = ["first_name", "last_name"]
 
     def __str__(self):
-        return f"{self.get_full_name() or self.username} ({self.role})"
+        return f"{self.get_full_name() or self.username} (Admin)"
 
     @property
     def is_admin(self):
-        return self.role == self.Role.ADMIN
+        return True
 
     @property
     def is_manager(self):
-        return self.role in (self.Role.ADMIN, self.Role.MANAGER)
+        return True
 
     @property
     def is_telecaller(self):
-        return self.role in (self.Role.ADMIN, self.Role.MANAGER, self.Role.TELECALLER)
+        return True
 
     @property
     def is_technician(self):
-        return self.role == self.Role.TECHNICIAN
+        return True

@@ -9,16 +9,20 @@ class RepairJob(TimestampedModel):
     """A physical repair job created from a lead."""
 
     class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SCHEDULED = "scheduled", "Scheduled"
         PICKUP_SCHEDULED = "pickup_scheduled", "Pickup Scheduled"
         DEVICE_COLLECTED = "device_collected", "Device Collected"
         DIAGNOSING = "diagnosing", "Diagnosing"
         QUOTE_SENT = "quote_sent", "Quote Sent"
         APPROVED = "approved", "Approved"
         IN_REPAIR = "in_repair", "In Repair"
+        IN_PROGRESS = "in_progress", "In Progress"
         QUALITY_CHECK = "quality_check", "Quality Check"
         READY_FOR_DELIVERY = "ready_for_delivery", "Ready for Delivery"
         DELIVERED = "delivered", "Delivered"
         COMPLETED = "completed", "Completed"
+        REWORK = "rework", "Rework Required"
         CANCELLED = "cancelled", "Cancelled"
 
     class PaymentStatus(models.TextChoices):
@@ -54,7 +58,6 @@ class RepairJob(TimestampedModel):
         null=True,
         blank=True,
         related_name="assigned_jobs",
-        limit_choices_to={"role": "technician"},
     )
 
     # Device details
@@ -78,6 +81,20 @@ class RepairJob(TimestampedModel):
     )
     diagnosis_notes = models.TextField(blank=True)
     repair_notes = models.TextField(blank=True)
+    confirmed_issue = models.TextField(blank=True)
+    work_performed = models.TextField(blank=True)
+    parts_used_notes = models.TextField(blank=True)
+    rework_reason = models.TextField(blank=True)
+
+    # Pricing, Vendor & Internal Profit Tracking (matching fixurdevice)
+    part_name = models.CharField(max_length=200, blank=True)
+    vendor_name = models.CharField(max_length=200, blank=True)
+    vendor_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    product_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    service_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_customer_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    internal_profit = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    invoice_number = models.CharField(max_length=50, blank=True)
 
     # Quote
     quote_total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

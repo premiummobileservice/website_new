@@ -24,7 +24,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Precision display replacement for cracked glass, touch unresponsiveness, bleeding pixels, and black screens.',
     fullDesc: 'Cracked, flickering, or unresponsive screens resolved using specialized tools and original-grade display assemblies. Every screen undergoes calibration for touch sensitivity, multi-touch precision, and true color tone before handover.',
     icon: 'Smartphone',
-    image: 'https://i.pinimg.com/736x/9a/12/43/9a12434b3295c96d0985809b49e36f71.jpg',
+    image: '/images/service_screen.jpg',
     commonIssues: [
       'Cracked or shattered outer glass',
       'Unresponsive or erratic touch response (ghost touch)',
@@ -42,7 +42,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Restore full day endurance for rapidly draining, swollen, or abruptly shutting down batteries.',
     fullDesc: 'Safe removal and replacement of degraded lithium-ion cells. We inspect internal power delivery ICs and charging circuits to ensure your device charges at correct wattage without overheating.',
     icon: 'BatteryCharging',
-    image: 'https://i.pinimg.com/1200x/89/38/a9/8938a9dbd6717cd1da8f35b2e3bca331.jpg',
+    image: '/images/service_battery.jpg',
     commonIssues: [
       'Battery drains quickly within a few hours',
       'Phone shuts down at 20% or 30%',
@@ -60,7 +60,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Ultrasonic chemical board cleaning, corrosion removal, and circuit-level component restoration.',
     fullDesc: 'Accidental liquid exposure causes rapid electrolysis and corrosion across motherboard traces. Our lab uses industrial ultrasonic baths and microscopic board inspection to neutralize corrosion and salvage circuitry.',
     icon: 'Droplets',
-    image: 'https://i.pinimg.com/736x/02/c2/62/02c262e51afde8e065fc64aac01eb378.jpg',
+    image: '/images/service_water.jpg',
     commonIssues: [
       'Dropped in water, rain, or sink',
       'Phone won’t turn on or bootloops after liquid contact',
@@ -78,7 +78,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Fix loose cable connections, bent pins, slow charging, or broken USB-C and Lightning ports.',
     fullDesc: 'Daily cable insertion accumulates compacted lint and wears down contact pins. We perform micro-cleaning or complete port daughterboard replacement to restore fast charging and OTG data connectivity.',
     icon: 'Zap',
-    image: 'https://i.pinimg.com/1200x/50/02/93/5002932cc68a3b514dce6a299fd7c96e.jpg',
+    image: '/images/about_workbench.jpg',
     commonIssues: [
       'Cable must be held at an angle to charge',
       'Port feels loose or cable falls out easily',
@@ -96,7 +96,7 @@ export const SERVICES: ServiceItem[] = [
     shortDesc: 'Dedicated diagnostics and repairs tailored exclusively to Apple hardware standards.',
     fullDesc: 'Comprehensive repair service specifically for iPhone models from iPhone 8 up to the latest flagship devices. Handled by experienced technicians using precision pentalobe and tri-point tooling.',
     icon: 'Shield',
-    image: 'https://i.pinimg.com/736x/15/90/8e/15908e25aee50eca8d18e9a796fa1422.jpg',
+    image: '/images/hero_lab.jpg',
     commonIssues: [
       'Back glass replacement with laser desoldering',
       'Earpiece speaker mesh clogging or low call volume',
